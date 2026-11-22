@@ -1,0 +1,143 @@
+// ArtiGest — Esquema de base de datos
+// Prisma + SQLite
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// CONFIGURACIÓN GENERAL
+// ─────────────────────────────────────────
+model Configuracion {
+  id              Int    @id @default(1)
+  nombreProyecto  String @default("L'Art d'Avril")
+  moneda          String @default("USD")
+  simboloMoneda   String @default("$")
+}
+
+// ─────────────────────────────────────────
+// TÉCNICAS ARTÍSTICAS
+// ─────────────────────────────────────────
+model Tecnica {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique   // ej: "Acrílico", "Óleo", "Acuarela"
+  obras  Obra[]
+}
+
+// ─────────────────────────────────────────
+// OBRAS DE ARTE
+// ─────────────────────────────────────────
+model Obra {
+  id          Int      @id @default(autoincrement())
+  titulo      String
+  tecnicaId   Int
+  tecnica     Tecnica  @relation(fields: [tecnicaId], references: [id])
+  anchoCm     Float?
+  altoCm      Float?
+  fechaInicio DateTime?
+  fechaFin    DateTime?
+  estado      String   @default("En proceso")
+  // Estados válidos: "En proceso" | "Disponible" | "Reservada" | "Vendida" | "Consignación"
+  descripcion String?
+  notas       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  materiales  MaterialUsado[]
+  venta       Venta?
+}
+
+// ─────────────────────────────────────────
+// CATEGORÍAS DE MATERIALES
+// ─────────────────────────────────────────
+model CategoriaMaterial {
+  id         Int        @id @default(autoincrement())
+  nombre     String     @unique  // ej: "Pinturas", "Lienzos", "Pinceles"
+  materiales Material[]
+}
+
+// ─────────────────────────────────────────
+// MATERIALES E INSUMOS
+// ─────────────────────────────────────────
+model Material {
+  id           Int               @id @default(autoincrement())
+  nombre       String
+  categoriaId  Int
+  categoria    CategoriaMaterial @relation(fields: [categoriaId], references: [id])
+  unidad       String            @default("unidad")
+  // Unidades válidas: "unidad" | "ml" | "gr" | "metro" | "cm"
+  stockActual  Float             @default(0)
+  stockMinimo  Float             @default(0)
+  costoUnitario Float            @default(0)
+  proveedor    String?
+  notas        String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  // Relaciones
+  usadoEnObras MaterialUsado[]
+  movimientos  MovimientoMaterial[]
+}
+
+// ─────────────────────────────────────────
+// MATERIALES USADOS EN CADA OBRA
+// (Tabla puente Obra ↔ Material)
+// ─────────────────────────────────────────
+model MaterialUsado {
+  id         Int      @id @default(autoincrement())
+  obraId     Int
+  obra       Obra     @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  materialId Int
+  material   Material @relation(fields: [materialId], references: [id])
+  cantidad   Float
+  costoUnitarioSnapshot Float  // Precio del material al momento de usarlo
+  createdAt  DateTime @default(now())
+}
+
+// ─────────────────────────────────────────
+// MOVIMIENTOS DE INVENTARIO
+// ─────────────────────────────────────────
+model MovimientoMaterial {
+  id         Int      @id @default(autoincrement())
+  materialId Int
+  material   Material @relation(fields: [materialId], references: [id])
+  tipo       String   // "entrada" | "salida"
+  cantidad   Float
+  motivo     String?  // ej: "Compra proveedor X", "Usado en obra Y"
+  fecha      DateTime @default(now())
+}
+
+// ─────────────────────────────────────────
+// GASTOS OPERATIVOS Y RETIROS
+// ─────────────────────────────────────────
+model GastoOperativo {
+  id          Int      @id @default(autoincrement())
+  concepto    String   // ej: "Arriendo estudio", "Retiro ganancia Avril", "Marketing"
+  categoria   String   @default("General")
+  // Categorías: "Estudio" | "Marketing" | "Transporte" | "Servicios" | "Herramientas" | "Retiro de Ganancia" | "General"
+  monto       Float
+  fecha       DateTime @default(now())
+  notas       String?
+  createdAt   DateTime @default(now())
+}
+
+// ─────────────────────────────────────────
+// VENTAS
+// ─────────────────────────────────────────
+model Venta {
+  id              Int      @id @default(autoincrement())
+  obraId          Int      @unique
+  obra            Obra     @relation(fields: [obraId], references: [id])
+  precioVenta     Float
+  fechaVenta      DateTime @default(now())
+  comprador       String?
+  comisionGaleria Float    @default(0)  // Porcentaje (ej: 30 = 30%)
+  notas           String?
+  createdAt       DateTime @default(now())
+}
